@@ -1,5 +1,5 @@
 import { Check, Download, Edit3, Plus, Search, Trash2 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { toast } from 'sonner'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/Select'
@@ -35,6 +35,12 @@ export function Ledger({
   const [typeFilter, setTypeFilter] = useState<'All' | BudgetType>('All')
   const [draft, setDraft] = useState(emptyDraft)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const PAGE_SIZE = 10
+  const [currentPage, setCurrentPage] = useState(1)
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [query, typeFilter])
+
   const incomeCategories = settings.categories.filter((category) => category.type === 'Income')
   const spendingCategories = settings.categories.filter((category) => category.type !== 'Income')
   const isIncomeDraft = categoryById.get(draft.categoryId)?.type === 'Income'
@@ -53,6 +59,17 @@ export function Ledger({
       })
       .sort((a, b) => b.date.localeCompare(a.date))
   }, [categoryById, query, transactions, typeFilter])
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+
+  const paginatedTransactions = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE
+    return filtered.slice(start, start + PAGE_SIZE)
+  }, [filtered, currentPage])
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -149,37 +166,73 @@ export function Ledger({
         <Table className="mt-5 min-w-[820px]">
           <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Category</TableHead><TableHead>Amount</TableHead><TableHead>Mode</TableHead><TableHead className="w-24"><span className="sr-only">Actions</span></TableHead></TableRow></TableHeader>
           <TableBody>
-          {filtered.map((transaction) => {
-            const category = categoryById.get(transaction.categoryId)
-            return (
-              <TableRow key={transaction.id}>
-                <TableCell>{formatDate(transaction.date)}</TableCell>
-                <TableCell className="max-w-72">
-                  <strong className="block truncate font-semibold">{transaction.description}</strong>
-                  <small className="block truncate text-xs text-muted-foreground">{transaction.notes}</small>
-                </TableCell>
-                <TableCell><Badge variant="outline" style={{ borderColor: category?.color, background: `${category?.color}18` }}>
-                  {category?.name ?? 'Uncategorized'}
-                </Badge></TableCell>
-                <TableCell>{formatMoney(transaction.amount)}</TableCell>
-                <TableCell>{transaction.paymentMode}</TableCell>
-                <TableCell><div className="flex gap-1.5">
-                  <Button aria-label={`Edit ${transaction.description}`} size="icon-sm" variant="outline" type="button" onClick={() => edit(transaction)} title="Edit entry"><Edit3 size={16} /></Button>
-                  <ConfirmDialog
-                    destructive
-                    title="Delete this transaction?"
-                    description={`${transaction.description} (${formatMoney(transaction.amount)}) will be permanently removed.`}
-                    confirmLabel="Delete transaction"
-                    onConfirm={() => onDelete(transaction.id)}
-                    trigger={<Button aria-label={`Delete ${transaction.description}`} className="hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive" size="icon-sm" variant="outline" type="button" title="Delete entry"><Trash2 size={16} /></Button>}
-                  />
-                </div></TableCell>
-              </TableRow>
-            )
-          })}
-          {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="h-32 text-center text-muted-foreground">No transactions match these filters.</TableCell></TableRow>}
+            {paginatedTransactions.map((transaction) => {
+              const category = categoryById.get(transaction.categoryId)
+              return (
+                <TableRow key={transaction.id}>
+                  <TableCell>{formatDate(transaction.date)}</TableCell>
+                  <TableCell className="max-w-72">
+                    <strong className="block truncate font-semibold">{transaction.description}</strong>
+                    <small className="block truncate text-xs text-muted-foreground">{transaction.notes}</small>
+                  </TableCell>
+                  <TableCell><Badge variant="outline" style={{ borderColor: category?.color, background: `${category?.color}18` }}>
+                    {category?.name ?? 'Uncategorized'}
+                  </Badge></TableCell>
+                  <TableCell>{formatMoney(transaction.amount)}</TableCell>
+                  <TableCell>{transaction.paymentMode}</TableCell>
+                  <TableCell><div className="flex gap-1.5">
+                    <Button aria-label={`Edit ${transaction.description}`} size="icon-sm" variant="outline" type="button" onClick={() => edit(transaction)} title="Edit entry"><Edit3 size={16} /></Button>
+                    <ConfirmDialog
+                      destructive
+                      title="Delete this transaction?"
+                      description={`${transaction.description} (${formatMoney(transaction.amount)}) will be permanently removed.`}
+                      confirmLabel="Delete transaction"
+                      onConfirm={() => onDelete(transaction.id)}
+                      trigger={<Button aria-label={`Delete ${transaction.description}`} className="hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive" size="icon-sm" variant="outline" type="button" title="Delete entry"><Trash2 size={16} /></Button>}
+                    />
+                  </div></TableCell>
+                </TableRow>
+              )
+            })}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="h-32 text-center text-muted-foreground">No transactions match these filters.</TableCell></TableRow>}
           </TableBody>
         </Table>
+        <div className="mt-4 flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Showing{" "}
+            {filtered.length === 0
+              ? 0
+              : (currentPage - 1) * PAGE_SIZE + 1}
+            {" - "}
+            {Math.min(currentPage * PAGE_SIZE, filtered.length)}
+            {" of "}
+            {filtered.length}
+          </p>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((p) => p - 1)}
+            >
+              Previous
+            </Button>
+
+            <span className="text-sm">
+              Page {currentPage} of {totalPages}
+            </span>
+
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((p) => p + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       </CardContent></Card>
     </div>
   )
