@@ -27,6 +27,7 @@ export type SettingsState = {
   weeklyLimit: number
   budgetCycleType: BudgetCycleType
   shakeToOpenLedger: boolean
+  rolloverEnabled: boolean
   categories: Category[]
   paymentModes: string[]
 }
@@ -41,6 +42,18 @@ export type BudgetCycle = {
 export type AppState = {
   settings: SettingsState
   transactions: Transaction[]
+}
+
+export type PageInfo = {
+  total: number
+  limit: number
+  offset: number
+  hasMore: boolean
+}
+
+export type TransactionsPage = {
+  transactions: Transaction[]
+  pageInfo: PageInfo
 }
 
 export type User = {

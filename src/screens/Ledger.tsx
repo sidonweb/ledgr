@@ -12,64 +12,83 @@ import { Input } from '../components/ui/Input'
 import { Label } from '../components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 import { budgetTypes, emptyDraft } from '../data/constants'
-import type { BudgetType, Category, SettingsState, Transaction } from '../types'
+import { fetchTransactionsPage } from '../services/api'
+import type { BudgetType, Category, PageInfo, SettingsState, Transaction } from '../types'
 import { formatDate, formatMoney } from '../utils/format'
 import { createId } from '../utils/id'
+
+const PAGE_SIZE = 10
 
 export function Ledger({
   categoryById,
   settings,
-  transactions,
+  transactionsVersion,
   onUpsert,
   onDelete,
   onExportCsv,
 }: {
   categoryById: Map<string, Category>
   settings: SettingsState
-  transactions: Transaction[]
+  transactionsVersion: number
   onUpsert: (transaction: Transaction) => void
   onDelete: (id: string) => void
   onExportCsv: () => void
 }) {
   const [query, setQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState<'All' | BudgetType>('All')
   const [draft, setDraft] = useState(emptyDraft)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const PAGE_SIZE = 10
   const [currentPage, setCurrentPage] = useState(1)
+  const [pageTransactions, setPageTransactions] = useState<Transaction[]>([])
+  const [pageInfo, setPageInfo] = useState<PageInfo>({ total: 0, limit: PAGE_SIZE, offset: 0, hasMore: false })
+  const [loadingPage, setLoadingPage] = useState(true)
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedQuery(query.trim()), 300)
+    return () => clearTimeout(timeout)
+  }, [query])
+
   useEffect(() => {
     setCurrentPage(1)
-  }, [query, typeFilter])
+  }, [debouncedQuery, typeFilter])
 
-  const incomeCategories = settings.categories.filter((category) => category.type === 'Income')
-  const spendingCategories = settings.categories.filter((category) => category.type !== 'Income')
-  const isIncomeDraft = categoryById.get(draft.categoryId)?.type === 'Income'
+  const categoryIds = useMemo(
+    () => (typeFilter === 'All' ? undefined : settings.categories.filter((category) => category.type === typeFilter).map((category) => category.id)),
+    [settings.categories, typeFilter],
+  )
 
-  const filtered = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase()
-    return transactions
-      .filter((transaction) => {
-        const category = categoryById.get(transaction.categoryId)
-        if (typeFilter !== 'All' && category?.type !== typeFilter) return false
-        if (!normalizedQuery) return true
-        return [transaction.description, transaction.notes, transaction.paymentMode, category?.name, category?.type]
-          .join(' ')
-          .toLowerCase()
-          .includes(normalizedQuery)
+  useEffect(() => {
+    let cancelled = false
+    setLoadingPage(true)
+    fetchTransactionsPage({ limit: PAGE_SIZE, offset: (currentPage - 1) * PAGE_SIZE, search: debouncedQuery || undefined, categoryIds })
+      .then((page) => {
+        if (cancelled) return
+        setPageTransactions(page.transactions)
+        setPageInfo(page.pageInfo)
       })
-      .sort((a, b) => b.date.localeCompare(a.date))
-  }, [categoryById, query, transactions, typeFilter])
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+      .catch((error: unknown) => {
+        if (cancelled) return
+        toast.error('Could not load transactions', { description: error instanceof Error ? error.message : 'Please try again' })
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingPage(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [categoryIds, currentPage, debouncedQuery, transactionsVersion])
 
-  const paginatedTransactions = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE
-    return filtered.slice(start, start + PAGE_SIZE)
-  }, [filtered, currentPage])
+  const totalPages = Math.max(1, Math.ceil(pageInfo.total / PAGE_SIZE))
   useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages)
     }
   }, [currentPage, totalPages])
+
+  const incomeCategories = settings.categories.filter((category) => category.type === 'Income')
+  const spendingCategories = settings.categories.filter((category) => category.type !== 'Income')
+  const isIncomeDraft = categoryById.get(draft.categoryId)?.type === 'Income'
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -166,7 +185,8 @@ export function Ledger({
         <Table className="mt-5 min-w-[820px]">
           <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Category</TableHead><TableHead>Amount</TableHead><TableHead>Mode</TableHead><TableHead className="w-24"><span className="sr-only">Actions</span></TableHead></TableRow></TableHeader>
           <TableBody>
-            {paginatedTransactions.map((transaction) => {
+            {loadingPage && <TableRow><TableCell colSpan={6} className="h-32 text-center text-muted-foreground">Loading...</TableCell></TableRow>}
+            {!loadingPage && pageTransactions.map((transaction) => {
               const category = categoryById.get(transaction.categoryId)
               return (
                 <TableRow key={transaction.id}>
@@ -194,19 +214,19 @@ export function Ledger({
                 </TableRow>
               )
             })}
-            {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="h-32 text-center text-muted-foreground">No transactions match these filters.</TableCell></TableRow>}
+            {!loadingPage && pageInfo.total === 0 && <TableRow><TableCell colSpan={6} className="h-32 text-center text-muted-foreground">No transactions match these filters.</TableCell></TableRow>}
           </TableBody>
         </Table>
         <div className="mt-4 flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
             Showing{" "}
-            {filtered.length === 0
+            {pageInfo.total === 0
               ? 0
               : (currentPage - 1) * PAGE_SIZE + 1}
             {" - "}
-            {Math.min(currentPage * PAGE_SIZE, filtered.length)}
+            {Math.min(currentPage * PAGE_SIZE, pageInfo.total)}
             {" of "}
-            {filtered.length}
+            {pageInfo.total}
           </p>
 
           <div className="flex items-center gap-2">

@@ -1,5 +1,5 @@
 import { Cell, Area, AreaChart, CartesianGrid, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { Clock3 } from 'lucide-react'
+import { Clock3, TriangleAlert } from 'lucide-react'
 import { KpiCard } from '../components/ui/KpiCard'
 import { PanelHeader } from '../components/ui/PanelHeader'
 import { ProgressRow } from '../components/ui/ProgressRow'
@@ -31,9 +31,26 @@ export function Dashboard({
       <section className="grid gap-3 sm:grid-cols-2 xl:col-span-2 xl:grid-cols-4">
         <KpiCard label={incomeLabel} value={formatMoney(monthly.salary)} tone="blue" />
         <KpiCard label="Spent" value={formatMoney(monthly.totalActual)} detail={`${monthly.spendRatio.toFixed(0)}% of budget plan`} tone="rose" />
-        <KpiCard label="Left" value={formatMoney(monthly.amountLeft)} detail={`${Math.max(monthly.percentageLeft, 0).toFixed(1)}% of income`} tone="green" />
+        <KpiCard
+          label="Left"
+          value={formatMoney(monthly.amountLeft)}
+          detail={monthly.amountLeft < 0 ? `${Math.abs(monthly.percentageLeft).toFixed(1)}% over income` : `${monthly.percentageLeft.toFixed(1)}% of income`}
+          tone={monthly.amountLeft < 0 ? 'rose' : 'green'}
+        />
         <KpiCard label="Score" value={`${monthly.score}/10`} detail={monthly.score >= 8 ? 'On track' : 'Needs attention'} tone="amber" />
       </section>
+
+      {monthly.amountLeft < 0 && (
+        <Card className="border-destructive/40 bg-destructive/5 xl:col-span-2">
+          <CardContent className="flex flex-wrap items-center gap-3 py-4">
+            <span className="grid size-9 place-items-center rounded-lg bg-destructive/15 text-destructive"><TriangleAlert size={17} /></span>
+            <div>
+              <strong className="block text-sm font-bold text-destructive">You&apos;re over budget this cycle</strong>
+              <span className="text-xs text-muted-foreground">You&apos;ve spent {formatMoney(Math.abs(monthly.amountLeft))} more than {incomeLabel.toLowerCase()}.</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {cycleIndicator && (
         <Card className="xl:col-span-2">

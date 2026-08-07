@@ -161,6 +161,20 @@ export function Profile({
           <p id="shake-to-open-ledger-note" className="mt-3 text-xs text-muted-foreground">
             It may not work on laptops, desktop computers, or browsers that do not provide device-motion access.
           </p>
+
+          <div className="mt-4 flex items-start justify-between gap-4 rounded-lg border bg-muted/40 p-4">
+            <div className="min-w-0">
+              <Label htmlFor="rollover-enabled">Carry over unused budget</Label>
+              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                Roll last salary cycle&apos;s leftover (or deficit) into this cycle&apos;s budget, instead of starting fresh every cycle. Only applies when using Salary Cycle mode.
+              </p>
+            </div>
+            <Switch
+              id="rollover-enabled"
+              checked={settings.rolloverEnabled}
+              onCheckedChange={(checked) => onUpdateSettings({ rolloverEnabled: checked })}
+            />
+          </div>
         </CardContent>
       </Card>}
       {section === 'guide' && <Guide />}

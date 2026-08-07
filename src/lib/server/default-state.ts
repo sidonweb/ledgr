@@ -19,6 +19,7 @@ export function buildEmptyState(): AppState {
       weeklyLimit: 0,
       budgetCycleType: 'calendar',
       shakeToOpenLedger: true,
+      rolloverEnabled: false,
       categories: defaultCategories,
       paymentModes: ['Credit Card', 'Debit Card', 'UPI', 'Cash', 'Bank Transfer'],
     },

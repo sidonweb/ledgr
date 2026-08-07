@@ -1,7 +1,21 @@
 import { endOfMonth, endOfQuarter, format, getQuarter, isAfter, isBefore, parseISO, startOfMonth, startOfQuarter } from 'date-fns'
 import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Radar,
+  RadarChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { PanelHeader } from '../components/ui/PanelHeader'
 import { ProgressRow } from '../components/ui/ProgressRow'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/Select'
@@ -12,7 +26,14 @@ import { Label } from '../components/ui/label'
 import { spendingBudgetTypes } from '../data/constants'
 import type { Category, SettingsState, Transaction } from '../types'
 import { compactMoney, formatMoney } from '../utils/format'
-import { buildPaymentRows, buildWeeklyRows } from '../utils/models'
+import { buildCycleReview } from '../utils/cycleReview'
+import { buildMonthlyModel, buildPaymentRows, buildWeeklyRows } from '../utils/models'
+
+const toneStyles = {
+  good: 'text-foreground',
+  warning: 'text-amber-600 dark:text-amber-400',
+  critical: 'text-destructive',
+} as const
 
 export function Analysis({
   categoryById,
@@ -20,12 +41,14 @@ export function Analysis({
   selectedMonthStart,
   transactions,
   selectedYear,
+  monthly,
 }: {
   categoryById: Map<string, Category>
   settings: SettingsState
   selectedMonthStart: Date
   transactions: Transaction[]
   selectedYear: number
+  monthly: ReturnType<typeof buildMonthlyModel>
 }) {
   const [mode, setMode] = useState<'Quarter' | 'Custom'>('Quarter')
   const [quarter, setQuarter] = useState(String(getQuarter(selectedMonthStart)))
@@ -57,6 +80,11 @@ export function Analysis({
   )
   const weeklyRows = useMemo(() => buildWeeklyRows(range.start, range.end, filtered, settings.weeklyLimit), [filtered, range.end, range.start, settings.weeklyLimit])
   const paymentRows = useMemo(() => buildPaymentRows(filtered), [filtered])
+  const radarData = useMemo(
+    () => monthly.typeRows.map((row) => ({ metric: row.type, Actual: row.actual, Budget: row.budget })),
+    [monthly.typeRows],
+  )
+  const cycleReview = useMemo(() => buildCycleReview(monthly, transactions, categoryById), [categoryById, monthly, transactions])
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,.75fr)]">
@@ -125,6 +153,46 @@ export function Analysis({
             <ProgressRow key={row.mode} label={row.mode} actual={row.amount} budget={paymentRows[0]?.amount || 1} color="#2B5D8A" compact />
           ))}
       </CardContent></Card>
+
+      <Card className="min-w-0">
+        <CardHeader><PanelHeader title="Budget Shape" action="This cycle" /></CardHeader>
+        <CardContent>
+          <div className="h-72 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart data={radarData}>
+                <PolarGrid stroke="var(--border)" />
+                <PolarAngleAxis dataKey="metric" tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }} />
+                {/* <PolarRadiusAxis tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }} tickFormatter={(value) => compactMoney(Number(value))} /> */}
+                <Tooltip
+                  contentStyle={chartTooltipContentStyle}
+                  formatter={(value) => formatMoney(Number(value))}
+                  itemStyle={chartTooltipItemStyle}
+                  labelStyle={chartTooltipLabelStyle}
+                />
+                <Legend />
+                <Radar name="Actual" dataKey="Actual" stroke="var(--chart-1)" fill="var(--chart-1)" fillOpacity={0.25} strokeWidth={2} />
+                <Radar name="Budget" dataKey="Budget" stroke="var(--chart-2)" fill="var(--chart-2)" fillOpacity={0.15} strokeWidth={2} />
+              </RadarChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><PanelHeader title="Cycle Review" action={`Score ${monthly.score}/10`} /></CardHeader>
+        <CardContent className="grid gap-3">
+          <strong className={`text-sm font-bold ${toneStyles[cycleReview.tone]}`}>{cycleReview.headline}</strong>
+          {cycleReview.suggestions.length > 0 ? (
+            <ul className="grid gap-2 text-sm text-muted-foreground">
+              {cycleReview.suggestions.map((suggestion) => (
+                <li key={suggestion} className="border-b pb-2 last:border-0 last:pb-0">{suggestion}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">Nothing stands out yet — keep logging entries to see suggestions here.</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

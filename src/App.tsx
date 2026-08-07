@@ -60,6 +60,7 @@ function App() {
   const [selectedCycleId, setSelectedCycleId] = useState('')
   const [apiStatus, setApiStatus] = useState<ApiStatus>('loading')
   const [apiMessage, setApiMessage] = useState('Connecting to PostgreSQL')
+  const [transactionsVersion, setTransactionsVersion] = useState(0)
   const lastShakeAt = useRef(0)
 
   useEffect(() => {
@@ -158,9 +159,26 @@ function App() {
       }),
     [periodEnd, periodStart, state.transactions],
   )
+  const previousCycleAmountLeft = useMemo(() => {
+    if (!usingSalaryCycle || !state.settings.rolloverEnabled || !selectedCycle) return 0
+    const index = availableCycles.findIndex((cycle) => cycle.id === selectedCycle.id)
+    const previousCycle = index > 0 ? availableCycles[index - 1] : null
+    if (!previousCycle?.endDate) return 0
+    const previousTransactions = state.transactions.filter((transaction) =>
+      isWithinInterval(parseISO(transaction.date), { start: parseISO(previousCycle.startDate), end: parseISO(previousCycle.endDate!) }),
+    )
+    return buildMonthlyModel(previousTransactions, state.settings, selectedYear, categoryById, previousCycle.income).amountLeft
+  }, [availableCycles, categoryById, selectedCycle, selectedYear, state.settings, state.transactions, usingSalaryCycle])
   const monthly = useMemo(
-    () => buildMonthlyModel(periodTransactions, state.settings, selectedYear, categoryById, usingSalaryCycle ? selectedCycle?.income : undefined),
-    [categoryById, periodTransactions, selectedCycle?.income, selectedYear, state.settings, usingSalaryCycle],
+    () =>
+      buildMonthlyModel(
+        periodTransactions,
+        state.settings,
+        selectedYear,
+        categoryById,
+        usingSalaryCycle ? (selectedCycle?.income ?? 0) + previousCycleAmountLeft : undefined,
+      ),
+    [categoryById, periodTransactions, previousCycleAmountLeft, selectedCycle?.income, selectedYear, state.settings, usingSalaryCycle],
   )
   const dailyTrend = useMemo(
     () => buildDailyTrend(periodStart, periodEnd, periodTransactions, categoryById),
@@ -180,7 +198,7 @@ function App() {
     }
     const remainingDays = estimateCycleDaysRemaining(budgetCycles, selectedCycle.id, today)
     return {
-      message: remainingDays === null ? 'Cycle length unknown yet' : `${selectedCycle.endDate ? '' : 'Est. '}${remainingDays} days left in this cycle`,
+      message: remainingDays === null ? "We'll estimate cycle length after 2-3 salary credits" : `${selectedCycle.endDate ? '' : 'Est. '}${remainingDays} days left in this cycle`,
       detail: `Remaining balance: ${formatMoney(monthly.amountLeft)}`,
     }
   }, [activeCycle?.id, budgetCycles, monthly.amountLeft, salaryCycleMode, selectedCycle])
@@ -193,6 +211,11 @@ function App() {
   }
 
   async function upsertTransaction(input: Transaction) {
+    if (salaryCycleMode && activeCycle && input.date < activeCycle.startDate) {
+      toast.info('This entry affects an earlier salary cycle', {
+        description: 'It changes totals for a cycle that already ended.',
+      })
+    }
     const optimistic = (current: AppState): AppState => {
       const exists = current.transactions.some((transaction) => transaction.id === input.id)
       return {
@@ -204,6 +227,7 @@ function App() {
     }
     setState(optimistic)
     await persist(() => saveTransaction(input))
+    setTransactionsVersion((version) => version + 1)
   }
 
   async function deleteTransaction(id: string) {
@@ -212,12 +236,14 @@ function App() {
       transactions: current.transactions.filter((transaction) => transaction.id !== id),
     }))
     await persist(() => removeTransaction(id))
+    setTransactionsVersion((version) => version + 1)
   }
 
   async function resetDemo() {
     await persist(resetState, 'Workspace reset')
     setSelectedMonth(today.getMonth())
     setSelectedYear(today.getFullYear())
+    setTransactionsVersion((version) => version + 1)
   }
 
   async function importJson(file: File) {
@@ -225,6 +251,7 @@ function App() {
       const parsed = JSON.parse(await file.text()) as AppState
       if (!parsed.settings || !Array.isArray(parsed.transactions)) throw new Error('This is not a valid Track Your Money backup')
       await persist(() => importState(parsed), 'Backup imported')
+      setTransactionsVersion((version) => version + 1)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not import backup'
       toast.error('Import failed', { description: message })
@@ -401,6 +428,7 @@ function App() {
             selectedMonthStart={selectedMonthStart}
             transactions={state.transactions}
             selectedYear={selectedYear}
+            monthly={monthly}
           />
         )}
         {tab === 'ask-ai' && <AskAi />}
@@ -408,7 +436,7 @@ function App() {
           <Ledger
             categoryById={categoryById}
             settings={state.settings}
-            transactions={state.transactions}
+            transactionsVersion={transactionsVersion}
             onUpsert={upsertTransaction}
             onDelete={deleteTransaction}
             onExportCsv={exportCsv}

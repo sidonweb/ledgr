@@ -1,5 +1,5 @@
 import { authTokenKey } from '../data/constants'
-import type { AiChatMessage, AiUsage, AppState, SettingsState, Transaction, User } from '../types'
+import type { AiChatMessage, AiUsage, AppState, SettingsState, Transaction, TransactionsPage, User } from '../types'
 
 export type AuthInput = { email: string; name?: string; password: string; mode: 'login' | 'signup' }
 
@@ -61,6 +61,13 @@ export async function saveTransaction(transaction: Transaction) {
 
 export async function removeTransaction(id: string) {
   return requestState(`/api/transactions/${id}`, { method: 'DELETE' })
+}
+
+export async function fetchTransactionsPage(input: { limit: number; offset: number; search?: string; categoryIds?: string[] }) {
+  const params = new URLSearchParams({ limit: String(input.limit), offset: String(input.offset) })
+  if (input.search) params.set('search', input.search)
+  if (input.categoryIds?.length) params.set('categoryIds', input.categoryIds.join(','))
+  return request<TransactionsPage>(`/api/transactions?${params.toString()}`)
 }
 
 export async function importState(state: AppState) {

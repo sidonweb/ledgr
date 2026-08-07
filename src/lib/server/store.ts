@@ -40,6 +40,38 @@ export async function getState(userId: string): Promise<AppState> {
   }
 }
 
+export async function listTransactionsPage(
+  userId: string,
+  { limit, offset, search, categoryIds }: { limit: number; offset: number; search: string | null; categoryIds: string[] | null },
+): Promise<{ transactions: Transaction[]; total: number }> {
+  const result = await pool.query<TransactionRow & { total_count: string }>(
+    `
+      select id, transaction_date::text as transaction_date, description, category_id, amount, payment_mode, notes,
+             count(*) over() as total_count
+      from transactions
+      where user_id = $1
+        and ($2::text is null or description ilike '%' || $2 || '%' or notes ilike '%' || $2 || '%' or payment_mode ilike '%' || $2 || '%')
+        and ($3::text[] is null or category_id = any($3))
+      order by transaction_date desc, created_at desc
+      limit $4 offset $5
+    `,
+    [userId, search, categoryIds, limit, offset],
+  )
+
+  return {
+    transactions: result.rows.map((row) => ({
+      id: row.id,
+      date: toDateString(row.transaction_date),
+      description: row.description,
+      categoryId: row.category_id,
+      amount: Number(row.amount),
+      paymentMode: row.payment_mode,
+      notes: row.notes,
+    })),
+    total: result.rows.length > 0 ? Number(result.rows[0].total_count) : 0,
+  }
+}
+
 export async function saveSettings(userId: string, settings: unknown) {
   validateSettings(settings)
   const normalizedSettings = normalizeSettings(settings)
@@ -226,6 +258,9 @@ function validateSettings(settings: unknown): asserts settings is SettingsState 
   }
   if (settings.shakeToOpenLedger !== undefined && typeof settings.shakeToOpenLedger !== 'boolean') {
     throw new Error('Shake to open Ledger must be enabled or disabled')
+  }
+  if (settings.rolloverEnabled !== undefined && typeof settings.rolloverEnabled !== 'boolean') {
+    throw new Error('Carry over must be enabled or disabled')
   }
   if (!Array.isArray(settings.categories) || settings.categories.length === 0) throw new Error('At least one category is required')
   if (!Array.isArray(settings.paymentModes) || settings.paymentModes.length === 0) throw new Error('At least one payment mode is required')
