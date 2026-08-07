@@ -1,5 +1,5 @@
 import { endOfMonth, endOfQuarter, format, getQuarter, isAfter, isBefore, parseISO, startOfMonth, startOfQuarter } from 'date-fns'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   Bar,
@@ -8,7 +8,6 @@ import {
   Legend,
   PolarAngleAxis,
   PolarGrid,
-  PolarRadiusAxis,
   Radar,
   RadarChart,
   ResponsiveContainer,
@@ -16,6 +15,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { Button } from '../components/ui/Button'
 import { PanelHeader } from '../components/ui/PanelHeader'
 import { ProgressRow } from '../components/ui/ProgressRow'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/Select'
@@ -34,6 +34,8 @@ const toneStyles = {
   warning: 'text-amber-600 dark:text-amber-400',
   critical: 'text-destructive',
 } as const
+
+const WEEKLY_PAGE_SIZE = 8
 
 export function Analysis({
   categoryById,
@@ -79,6 +81,15 @@ export function Analysis({
     [categoryById, categoryFilter, paymentMode, range.end, range.start, transactions],
   )
   const weeklyRows = useMemo(() => buildWeeklyRows(range.start, range.end, filtered, settings.weeklyLimit), [filtered, range.end, range.start, settings.weeklyLimit])
+  const [weeklyPage, setWeeklyPage] = useState(1)
+  useEffect(() => {
+    setWeeklyPage(1)
+  }, [weeklyRows])
+  const weeklyTotalPages = Math.max(1, Math.ceil(weeklyRows.length / WEEKLY_PAGE_SIZE))
+  const paginatedWeeklyRows = useMemo(
+    () => weeklyRows.slice((weeklyPage - 1) * WEEKLY_PAGE_SIZE, weeklyPage * WEEKLY_PAGE_SIZE),
+    [weeklyPage, weeklyRows],
+  )
   const paymentRows = useMemo(() => buildPaymentRows(filtered), [filtered])
   const radarData = useMemo(
     () => monthly.typeRows.map((row) => ({ metric: row.type, Actual: row.actual, Budget: row.budget })),
@@ -143,9 +154,17 @@ export function Analysis({
       </Card>
 
       <Card><CardHeader><PanelHeader title="Weekly Limit" action={formatMoney(settings.weeklyLimit)} /></CardHeader><CardContent className="grid gap-4">
-          {weeklyRows.map((row) => (
+          {paginatedWeeklyRows.map((row) => (
             <ProgressRow key={row.label} label={row.label} actual={row.spend} budget={row.limit} color={row.spend > row.limit ? '#2B5D8A' : '#7FD3FF'} />
           ))}
+          {weeklyRows.length === 0 && <p className="text-sm text-muted-foreground">No weeks in this range yet.</p>}
+          {weeklyTotalPages > 1 && (
+            <div className="mt-1 flex items-center justify-between">
+              <Button variant="outline" size="sm" disabled={weeklyPage === 1} onClick={() => setWeeklyPage((page) => page - 1)}>Previous</Button>
+              <span className="text-xs text-muted-foreground">Page {weeklyPage} of {weeklyTotalPages}</span>
+              <Button variant="outline" size="sm" disabled={weeklyPage === weeklyTotalPages} onClick={() => setWeeklyPage((page) => page + 1)}>Next</Button>
+            </div>
+          )}
       </CardContent></Card>
 
       <Card><CardHeader><PanelHeader title="Payment Modes" action={`${paymentRows.length} active`} /></CardHeader><CardContent className="grid gap-4">
