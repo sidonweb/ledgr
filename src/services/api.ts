@@ -3,11 +3,23 @@ import type { AiChatMessage, AiUsage, AppState, SettingsState, Transaction, Tran
 
 export type AuthInput = { email: string; name?: string; password: string; mode: 'login' | 'signup' }
 
+/**
+ * The server rejected the credentials themselves. Only this should sign someone
+ * out — a network blip or a 500 must never throw away a valid token.
+ */
+export class AuthError extends Error {
+  constructor(message = 'Please sign in again') {
+    super(message)
+    this.name = 'AuthError'
+  }
+}
+
 export async function fetchSession(token: string) {
   const response = await fetch('/api/auth/me', {
     headers: { Authorization: `Bearer ${token}` },
   })
-  if (!response.ok) throw new Error('Please sign in again')
+  if (response.status === 401) throw new AuthError()
+  if (!response.ok) throw new Error('Could not reach the server')
   return readJson<{ user: User; state: AppState }>(response)
 }
 
@@ -143,7 +155,8 @@ async function request<T>(path: string, init: RequestInit = {}) {
     },
   })
   if (!response.ok) {
-    const payload = await readJson<{ error?: string }>(response)
+    const payload = await readJson<{ error?: string }>(response).catch(() => ({}) as { error?: string })
+    if (response.status === 401) throw new AuthError(payload?.error ?? undefined)
     throw new Error(payload?.error ?? `Request failed with ${response.status}`)
   }
   return readJson<T>(response)

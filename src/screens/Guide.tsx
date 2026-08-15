@@ -1,6 +1,6 @@
 import { BookOpen, CalendarCheck, PieChart, ReceiptText, WalletCards } from 'lucide-react'
-import { PanelHeader } from '../components/ui/PanelHeader'
-import { Card, CardContent, CardHeader } from '../components/ui/Card'
+import { PanelHeader } from '../components/ui/panel-header'
+import { Card, CardContent, CardHeader } from '../components/ui/card'
 
 const steps = [
   {
@@ -16,7 +16,7 @@ const steps = [
   {
     icon: <PieChart size={18} />,
     title: 'Review the month',
-    text: 'Dashboard compares actual spending with your planned Needs, Wants, and Savings so you can see what changed.',
+    text: 'Dashboard compares actual spending with your planned needs, wants, and savings so you can see what changed.',
   },
   {
     icon: <CalendarCheck size={18} />,
@@ -25,41 +25,67 @@ const steps = [
   },
 ]
 
+const splits = [
+  { share: '50', label: 'Needs', text: 'Rent, groceries, bills, commute, health, and the rest of the life infrastructure you have to pay for.' },
+  { share: '30', label: 'Wants', text: 'Food delivery, shopping, subscriptions, trips, entertainment, gifts, and the choices that make life good.' },
+  { share: '20', label: 'Savings', text: 'SIPs, emergency fund, debt payoff, investments, and money you intentionally keep for future you.' },
+]
+
 export function Guide() {
   return (
     <div className="grid gap-4">
-      <section className="relative grid min-h-72 overflow-hidden rounded-xl border bg-primary p-7 text-primary-foreground shadow-sm md:grid-cols-[1fr_260px] md:items-center">
-        <div>
-          <p className="mb-2 text-[11px] font-extrabold tracking-[.2em] text-primary-foreground/70 uppercase">How it works</p>
-          <h1 className="max-w-2xl text-3xl font-extrabold tracking-tight md:text-5xl">Track money by behavior, not guilt.</h1>
-          <p className="mt-4 max-w-2xl text-sm leading-6 text-primary-foreground/75">
-            This app keeps your daily ledger connected to a simple budget framework, so every entry teaches you where your money actually goes.
-          </p>
-        </div>
-        <div className="mt-8 grid grid-cols-3 gap-2 md:mt-0">
-          {[50, 30, 20].map((value) => <span className="grid aspect-square place-items-center rounded-xl border border-white/15 bg-white/10 text-3xl font-black backdrop-blur" key={value}>{value}</span>)}
+      <section className="relative overflow-hidden rounded-xl bg-primary p-7 text-primary-foreground shadow-md sm:p-9">
+        <div className="relative grid gap-8 md:grid-cols-[1fr_280px] md:items-center">
+          <div>
+            <p className="text-[11px] font-bold tracking-[.12em] text-primary-foreground/70 uppercase">How it works</p>
+            <h2 className="mt-3 max-w-2xl text-3xl leading-[1.05] font-extrabold tracking-[-.04em] md:text-[2.75rem]">
+              Track money by behaviour, not guilt.
+            </h2>
+            <p className="mt-4 max-w-xl text-sm leading-6 text-primary-foreground/80">
+              Your daily ledger stays connected to a simple budget framework, so every entry teaches you a little more about where the money actually goes.
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2.5">
+            {splits.map((split) => (
+              <span className="grid aspect-square place-content-center rounded-lg bg-white/12 text-center backdrop-blur" key={split.share}>
+                <strong className="block text-2xl leading-none font-extrabold tracking-[-.04em] tnum">{split.share}</strong>
+                <span className="mt-1.5 block text-[10px] font-bold tracking-[.08em] text-primary-foreground/70 uppercase">{split.label}</span>
+              </span>
+            ))}
+          </div>
         </div>
       </section>
 
-      <Card><CardHeader><PanelHeader title="The 50 / 30 / 20 Rule" action={<BookOpen size={16} />} /></CardHeader><CardContent className="grid gap-3 md:grid-cols-3">
-        {[
-          ['50% Needs', 'Rent, groceries, bills, commute, health, and other life infrastructure you must pay for.'],
-          ['30% Wants', 'Food delivery, shopping, subscriptions, trips, entertainment, gifts, and lifestyle choices.'],
-          ['20% Savings', 'SIPs, emergency fund, debt payoff, investments, and money you intentionally keep for future you.'],
-        ].map(([title, text]) => <Card className="gap-2 bg-background/40 p-4 py-4 shadow-none" key={title}><strong className="text-sm font-bold">{title}</strong><p className="text-sm leading-6 text-muted-foreground">{text}</p></Card>)}
-      </CardContent></Card>
+      <Card>
+        <CardHeader>
+          <PanelHeader title="The 50 / 30 / 20 rule" action={<BookOpen size={14} />} />
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-3">
+          {splits.map((split) => (
+            <div className="rounded-lg bg-muted/60 p-5" key={split.label}>
+              <strong className="block text-sm font-bold">{split.share}% {split.label}</strong>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{split.text}</p>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
-      <Card><CardHeader><PanelHeader title="Using the Application" action="Daily flow" /></CardHeader><CardContent className="grid gap-3 md:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <PanelHeader title="Using the app" action="Daily flow" />
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-2">
           {steps.map((step) => (
-            <Card className="flex-row gap-3 bg-background/40 p-4 py-4 shadow-none" key={step.title}>
-              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-foreground">{step.icon}</span>
+            <div className="flex gap-3.5 rounded-lg bg-muted/60 p-5" key={step.title}>
+              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-accent text-primary">{step.icon}</span>
               <div>
-                <strong className="mb-2 block text-sm font-bold">{step.title}</strong>
+                <strong className="mb-1.5 block text-sm font-bold">{step.title}</strong>
                 <p className="text-sm leading-6 text-muted-foreground">{step.text}</p>
               </div>
-            </Card>
+            </div>
           ))}
-      </CardContent></Card>
+        </CardContent>
+      </Card>
     </div>
   )
 }

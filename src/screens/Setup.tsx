@@ -1,11 +1,11 @@
 import { Plus, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { PanelHeader } from '../components/ui/PanelHeader'
-import { Button } from '../components/ui/Button'
-import { Card, CardContent, CardHeader } from '../components/ui/Card'
-import { Input } from '../components/ui/Input'
+import { PanelHeader } from '../components/ui/panel-header'
+import { Button } from '../components/ui/button'
+import { Card, CardContent, CardHeader } from '../components/ui/card'
+import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/Select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 import { budgetTypes } from '../data/constants'
 import type { BudgetType, Category, SettingsState } from '../types'
@@ -34,9 +34,9 @@ export function Setup({
         ...settings.categories,
         {
           id: slugify(`category-${Date.now()}`),
-          name: 'New Category',
+          name: 'New category',
           type: 'Need',
-          color: '#2B5D8A',
+          color: '#5B4BE8',
         },
       ],
     })
@@ -61,27 +61,27 @@ export function Setup({
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,.75fr)]">
-      <Card><CardHeader><PanelHeader title="Income Plan" action="5 years" /></CardHeader><CardContent className="grid gap-4">
-          <SetupField id="budget-cycle-type" label="Budget Cycle Type">
+    <div className="grid items-start gap-4 xl:grid-cols-[minmax(320px,.8fr)_minmax(0,1.2fr)]">
+      <Card><CardHeader><PanelHeader title="Income plan" action="5 years" /></CardHeader><CardContent className="grid gap-4">
+          <SetupField id="budget-cycle-type" label="Budget cycle">
             <Select value={settings.budgetCycleType} onValueChange={(value) => onUpdateSettings({ budgetCycleType: value as SettingsState['budgetCycleType'] })}>
               <SelectTrigger id="budget-cycle-type" className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="calendar">Calendar Month</SelectItem>
-                <SelectItem value="salary">Salary Cycle (credit to credit)</SelectItem>
+                <SelectItem value="calendar">Calendar month</SelectItem>
+                <SelectItem value="salary">Salary cycle (payday to payday)</SelectItem>
               </SelectContent>
             </Select>
           </SetupField>
-          <SetupField id="start-year" label="Start Year"><Input id="start-year" type="number" value={settings.startYear} onChange={(event) => onUpdateSettings({ startYear: Number(event.target.value) })} /></SetupField>
-          <SetupField id="salary" label="Salary"><Input id="salary" type="number" value={settings.salary} onChange={(event) => onUpdateSettings({ salary: Number(event.target.value) })} /></SetupField>
-          <SetupField id="growth" label="Annual Growth %"><Input id="growth" type="number" value={settings.salaryGrowth} onChange={(event) => onUpdateSettings({ salaryGrowth: Number(event.target.value) })} /></SetupField>
-          <SetupField id="weekly-limit" label="Weekly Limit"><Input id="weekly-limit" type="number" value={settings.weeklyLimit} onChange={(event) => onUpdateSettings({ weeklyLimit: Number(event.target.value) })} /></SetupField>
+          <SetupField id="start-year" label="Start year"><Input id="start-year" type="number" value={settings.startYear} onChange={(event) => onUpdateSettings({ startYear: Number(event.target.value) })} /></SetupField>
+          <SetupField id="salary" label="Salary"><MoneyInput id="salary" value={settings.salary} onChange={(value) => onUpdateSettings({ salary: value })} /></SetupField>
+          <SetupField id="growth" label="Annual growth %"><Input id="growth" type="number" value={settings.salaryGrowth} onChange={(event) => onUpdateSettings({ salaryGrowth: Number(event.target.value) })} /></SetupField>
+          <SetupField id="weekly-limit" label="Weekly limit"><MoneyInput id="weekly-limit" value={settings.weeklyLimit} onChange={(value) => onUpdateSettings({ weeklyLimit: value })} /></SetupField>
       </CardContent></Card>
 
-      <Card className="min-w-0"><CardHeader><PanelHeader title="50 / 30 / 20 Projection" action="Setup sheet" /></CardHeader><CardContent>
-        <Table><TableHeader><TableRow><TableHead>Year</TableHead><TableHead>Salary</TableHead><TableHead>Needs</TableHead><TableHead>Wants</TableHead><TableHead>Savings</TableHead></TableRow></TableHeader><TableBody>
+      <Card className="min-w-0"><CardHeader><PanelHeader title="50 / 30 / 20 projection" action="Next 5 years" /></CardHeader><CardContent>
+        <Table><TableHeader><TableRow><TableHead>Year</TableHead><TableHead className="text-right">Salary</TableHead><TableHead className="text-right">Needs</TableHead><TableHead className="text-right">Wants</TableHead><TableHead className="text-right">Savings</TableHead></TableRow></TableHeader><TableBody>
           {salaryPlans.map((plan) => (
-            <TableRow key={plan.year}><TableCell>{plan.year}</TableCell><TableCell>{formatMoney(plan.salary)}</TableCell><TableCell>{formatMoney(plan.need)}</TableCell><TableCell>{formatMoney(plan.want)}</TableCell><TableCell>{formatMoney(plan.saving)}</TableCell></TableRow>
+            <TableRow key={plan.year}><TableCell className="text-sm font-semibold">{plan.year}</TableCell><TableCell className="text-right text-sm font-bold">{formatMoney(plan.salary)}</TableCell><TableCell className="text-right text-sm text-muted-foreground">{formatMoney(plan.need)}</TableCell><TableCell className="text-right text-sm text-muted-foreground">{formatMoney(plan.want)}</TableCell><TableCell className="text-right text-sm text-muted-foreground">{formatMoney(plan.saving)}</TableCell></TableRow>
           ))}
         </TableBody></Table>
       </CardContent></Card>
@@ -94,20 +94,20 @@ export function Setup({
         /></CardHeader><CardContent className="grid gap-3">
           {settings.categories.map((category) => (
             <div className="grid grid-cols-[44px_minmax(0,1fr)_130px_36px] items-center gap-2 max-sm:grid-cols-[44px_minmax(0,1fr)]" key={category.id}>
-              <Input aria-label={`${category.name} color`} className="w-11 p-1" type="color" value={category.color} onChange={(event) => updateCategory(category.id, { color: event.target.value })} />
+              <Input aria-label={`${category.name} color`} className="w-11 cursor-pointer p-1" type="color" value={category.color} onChange={(event) => updateCategory(category.id, { color: event.target.value })} />
               <Input aria-label="Category name" value={category.name} onChange={(event) => updateCategory(category.id, { name: event.target.value })} />
               <Select value={category.type} onValueChange={(value) => updateCategory(category.id, { type: value as BudgetType })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>
                 {budgetTypes.map((type) => (
                   <SelectItem key={type} value={type}>{type}</SelectItem>
                 ))}
               </SelectContent></Select>
-              <Button aria-label={`Delete ${category.name}`} className="hover:bg-destructive/10 hover:text-destructive" size="icon-sm" variant="outline" type="button" onClick={() => removeCategory(category.id)} title="Delete category"><Trash2 size={16} /></Button>
+              <Button aria-label={`Delete ${category.name}`} className="hover:bg-negative-muted hover:text-negative" size="icon-sm" variant="ghost" type="button" onClick={() => removeCategory(category.id)} title="Delete category"><Trash2 size={16} /></Button>
             </div>
           ))}
         </CardContent></Card>
 
       <Card><CardHeader><PanelHeader
-          title="Payment Modes"
+          title="Payment modes"
           action={
             <Button size="sm" type="button" onClick={addPaymentMode}><Plus size={14} /> Add</Button>
           }
@@ -115,10 +115,19 @@ export function Setup({
           {settings.paymentModes.map((mode, index) => (
             <div className="grid grid-cols-[minmax(0,1fr)_36px] items-center gap-2" key={`${mode}-${index}`}>
               <Input aria-label="Payment mode" value={mode} onChange={(event) => updatePaymentMode(index, event.target.value)} />
-              <Button aria-label={`Delete ${mode}`} className="hover:bg-destructive/10 hover:text-destructive" size="icon-sm" variant="outline" type="button" onClick={() => removePaymentMode(index)} title="Delete payment mode"><Trash2 size={16} /></Button>
+              <Button aria-label={`Delete ${mode}`} className="hover:bg-negative-muted hover:text-negative" size="icon-sm" variant="ghost" type="button" onClick={() => removePaymentMode(index)} title="Delete payment mode"><Trash2 size={16} /></Button>
             </div>
           ))}
         </CardContent></Card>
+    </div>
+  )
+}
+
+function MoneyInput({ id, onChange, value }: { id: string; onChange: (value: number) => void; value: number }) {
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-sm font-semibold text-muted-foreground">₹</span>
+      <Input className="pl-8 font-semibold tnum" id={id} min="0" type="number" value={value} onChange={(event) => onChange(Number(event.target.value))} />
     </div>
   )
 }

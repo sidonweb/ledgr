@@ -1,23 +1,30 @@
-import { Check, Download, Edit3, Plus, Search, Trash2 } from 'lucide-react'
+import { format, isToday, isYesterday, parseISO } from 'date-fns'
+import { Download, Pencil, Search, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
+import type { FormEvent } from 'react'
 import { toast } from 'sonner'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/Select'
-import { PanelHeader } from '../components/ui/PanelHeader'
-import { ConfirmDialog } from '../components/ui/ConfirmDialog'
-import { Badge } from '../components/ui/badge'
-import { Button } from '../components/ui/Button'
-import { Card, CardContent, CardHeader } from '../components/ui/Card'
-import { Input } from '../components/ui/Input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
+import { ConfirmDialog } from '../components/ui/confirm-dialog'
+import { Button } from '../components/ui/button'
+import { Card, CardContent } from '../components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog'
+import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
-import { budgetTypes, emptyDraft } from '../data/constants'
+import { budgetTypes } from '../data/constants'
 import { fetchTransactionsPage } from '../services/api'
 import type { BudgetType, Category, PageInfo, SettingsState, Transaction } from '../types'
-import { formatDate, formatMoney } from '../utils/format'
-import { createId } from '../utils/id'
+import { formatMoney } from '../utils/format'
+import { cn } from '../utils/cn'
 
-const PAGE_SIZE = 10
+const PAGE_SIZE = 25
+
+/** "Today", "Yesterday", then "Tue, 12 Aug" — the way you'd say the date out loud. */
+function dayHeading(date: string) {
+  const parsed = parseISO(date)
+  if (isToday(parsed)) return 'Today'
+  if (isYesterday(parsed)) return 'Yesterday'
+  return format(parsed, 'EEE, dd MMM yyyy')
+}
 
 export function Ledger({
   categoryById,
@@ -37,8 +44,7 @@ export function Ledger({
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState<'All' | BudgetType>('All')
-  const [draft, setDraft] = useState(emptyDraft)
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editing, setEditing] = useState<Transaction | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageTransactions, setPageTransactions] = useState<Transaction[]>([])
   const [pageInfo, setPageInfo] = useState<PageInfo>({ total: 0, limit: PAGE_SIZE, offset: 0, hasMore: false })
@@ -81,183 +87,268 @@ export function Ledger({
 
   const totalPages = Math.max(1, Math.ceil(pageInfo.total / PAGE_SIZE))
   useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages)
-    }
+    if (currentPage > totalPages) setCurrentPage(totalPages)
   }, [currentPage, totalPages])
 
-  const incomeCategories = settings.categories.filter((category) => category.type === 'Income')
-  const spendingCategories = settings.categories.filter((category) => category.type !== 'Income')
-  const isIncomeDraft = categoryById.get(draft.categoryId)?.type === 'Income'
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const amount = Number(draft.amount)
-    const description = draft.description.trim() || (isIncomeDraft ? 'Income' : '')
-    if (!description || !draft.categoryId || !Number.isFinite(amount) || amount <= 0) {
-      toast.error('Check the entry', { description: `${isIncomeDraft ? 'A date and' : 'Description, category, and'} an amount greater than zero are required.` })
-      return
+  /** A passbook reads day by day, with each day totalled. */
+  const days = useMemo(() => {
+    const grouped = new Map<string, Transaction[]>()
+    for (const transaction of pageTransactions) {
+      const bucket = grouped.get(transaction.date) ?? []
+      bucket.push(transaction)
+      grouped.set(transaction.date, bucket)
     }
-    onUpsert({
-      id: editingId ?? createId(),
-      date: draft.date,
-      description,
-      categoryId: draft.categoryId,
-      amount,
-      paymentMode: draft.paymentMode || settings.paymentModes[0] || 'Bank Transfer',
-      notes: draft.notes.trim(),
-    })
-    setDraft({ ...emptyDraft, categoryId: spendingCategories[0]?.id ?? settings.categories[0]?.id ?? '', paymentMode: settings.paymentModes[0] ?? '' })
-    setEditingId(null)
-  }
-
-  function changeEntryType(value: string) {
-    const categoryId = value === 'income' ? incomeCategories[0]?.id : spendingCategories[0]?.id
-    setDraft({ ...draft, categoryId: categoryId ?? draft.categoryId })
-  }
-
-  function edit(transaction: Transaction) {
-    setEditingId(transaction.id)
-    setDraft({
-      date: transaction.date,
-      description: transaction.description,
-      categoryId: transaction.categoryId,
-      amount: String(transaction.amount),
-      paymentMode: transaction.paymentMode,
-      notes: transaction.notes,
-    })
-  }
+    return Array.from(grouped.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([date, entries]) => {
+        let spent = 0
+        let received = 0
+        for (const entry of entries) {
+          if (categoryById.get(entry.categoryId)?.type === 'Income') received += entry.amount
+          else spent += entry.amount
+        }
+        return { date, entries, spent, received }
+      })
+  }, [categoryById, pageTransactions])
 
   return (
-    <div className="grid items-start gap-4 xl:grid-cols-[350px_minmax(0,1fr)]">
+    <div className="grid gap-4">
       <Card>
-        <CardHeader><PanelHeader title={editingId ? 'Edit Entry' : 'New Entry'} action="Daily tracker" /></CardHeader>
-        <CardContent><form className="grid gap-4" onSubmit={submit}>
-          <Field label="Entry Type">
-            <Select value={isIncomeDraft ? 'income' : 'spending'} onValueChange={changeEntryType}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>
-              <SelectItem value="spending">Expense / Saving</SelectItem>
-              <SelectItem value="income">Income</SelectItem>
-            </SelectContent></Select>
-          </Field>
-          <Field label="Date" htmlFor="entry-date"><Input id="entry-date" type="date" value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })} /></Field>
-          <Field label={isIncomeDraft ? 'Description (optional)' : 'Description'} htmlFor="entry-description"><Input id="entry-description" value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} placeholder={isIncomeDraft ? 'e.g. Monthly salary' : 'e.g. Groceries'} /></Field>
-          {!isIncomeDraft && <Field label="Category">
-            <Select value={draft.categoryId} onValueChange={(value) => setDraft({ ...draft, categoryId: value })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>
-              {spendingCategories.map((category) => (
-                <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
-              ))}
-            </SelectContent></Select>
-          </Field>}
-          <Field label="Amount" htmlFor="entry-amount"><Input id="entry-amount" min="0" step="0.01" type="number" value={draft.amount} onChange={(event) => setDraft({ ...draft, amount: event.target.value })} /></Field>
-          {!isIncomeDraft && <Field label="Payment Mode">
-            <Select value={draft.paymentMode} onValueChange={(value) => setDraft({ ...draft, paymentMode: value })}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent>
-              {settings.paymentModes.map((mode) => (
-                <SelectItem key={mode} value={mode}>{mode}</SelectItem>
-              ))}
-            </SelectContent></Select>
-          </Field>}
-          <Field label="Notes" htmlFor="entry-notes"><Input id="entry-notes" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} placeholder="Optional" /></Field>
-          <div className="flex justify-end gap-2 pt-1">
-            {editingId && (
-              <Button variant="outline" type="button" onClick={() => setEditingId(null)}>Cancel</Button>
-            )}
-            <Button type="submit">
-              {editingId ? <Check size={16} /> : <Plus size={16} />}
-              {editingId ? 'Save' : 'Add'}
-            </Button>
+        <CardContent className="flex flex-wrap items-center gap-2.5">
+          <div className="relative min-w-52 flex-1">
+            <Search className="pointer-events-none absolute top-1/2 left-3 z-10 -translate-y-1/2 text-muted-foreground" size={16} />
+            <Input aria-label="Search ledger" className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search your ledger" />
           </div>
-        </form></CardContent>
+          <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as 'All' | BudgetType)}>
+            <SelectTrigger aria-label="Filter by type" className="min-w-32"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All types</SelectItem>
+              {budgetTypes.map((type) => (
+                <SelectItem key={type} value={type}>{type}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button onClick={onExportCsv} type="button" variant="outline">
+            <Download /> Export
+          </Button>
+        </CardContent>
       </Card>
 
-      <Card className="min-w-0"><CardContent>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="relative min-w-56 flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-3 z-10 -translate-y-1/2 text-muted-foreground" size={16} />
-            <Input aria-label="Search ledger" className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search ledger" />
+      <Card className="min-w-0 gap-0 overflow-hidden py-0">
+        {loadingPage && <p className="px-5 py-20 text-center text-sm text-muted-foreground">Loading your entries…</p>}
+
+        {!loadingPage && pageInfo.total === 0 && (
+          <div className="px-5 py-20 text-center">
+            <p className="text-sm font-medium">No entries match these filters.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Clear the search, or press N to add one.</p>
           </div>
-          <div className="grid gap-1.5"><Label>Type</Label><Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as 'All' | BudgetType)}><SelectTrigger className="min-w-28"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="All">All</SelectItem>
-            {budgetTypes.map((type) => (
-              <SelectItem key={type} value={type}>{type}</SelectItem>
-            ))}
-          </SelectContent></Select></div>
-          <Button aria-label="Export CSV" size="icon" variant="outline" type="button" onClick={onExportCsv} title="Export CSV"><Download size={18} /></Button>
-        </div>
-        <Table className="mt-5 min-w-[820px]">
-          <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead>Category</TableHead><TableHead>Amount</TableHead><TableHead>Mode</TableHead><TableHead className="w-24"><span className="sr-only">Actions</span></TableHead></TableRow></TableHeader>
-          <TableBody>
-            {loadingPage && <TableRow><TableCell colSpan={6} className="h-32 text-center text-muted-foreground">Loading...</TableCell></TableRow>}
-            {!loadingPage && pageTransactions.map((transaction) => {
-              const category = categoryById.get(transaction.categoryId)
-              return (
-                <TableRow key={transaction.id}>
-                  <TableCell>{formatDate(transaction.date)}</TableCell>
-                  <TableCell className="max-w-72">
-                    <strong className="block truncate font-semibold">{transaction.description}</strong>
-                    <small className="block truncate text-xs text-muted-foreground">{transaction.notes}</small>
-                  </TableCell>
-                  <TableCell><Badge variant="outline" style={{ borderColor: category?.color, background: `${category?.color}18` }}>
-                    {category?.name ?? 'Uncategorized'}
-                  </Badge></TableCell>
-                  <TableCell>{formatMoney(transaction.amount)}</TableCell>
-                  <TableCell>{transaction.paymentMode}</TableCell>
-                  <TableCell><div className="flex gap-1.5">
-                    <Button aria-label={`Edit ${transaction.description}`} size="icon-sm" variant="outline" type="button" onClick={() => edit(transaction)} title="Edit entry"><Edit3 size={16} /></Button>
-                    <ConfirmDialog
-                      destructive
-                      title="Delete this transaction?"
-                      description={`${transaction.description} (${formatMoney(transaction.amount)}) will be permanently removed.`}
-                      confirmLabel="Delete transaction"
-                      onConfirm={() => onDelete(transaction.id)}
-                      trigger={<Button aria-label={`Delete ${transaction.description}`} className="hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive" size="icon-sm" variant="outline" type="button" title="Delete entry"><Trash2 size={16} /></Button>}
-                    />
-                  </div></TableCell>
-                </TableRow>
-              )
-            })}
-            {!loadingPage && pageInfo.total === 0 && <TableRow><TableCell colSpan={6} className="h-32 text-center text-muted-foreground">No transactions match these filters.</TableCell></TableRow>}
-          </TableBody>
-        </Table>
-        <div className="mt-4 flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Showing{" "}
-            {pageInfo.total === 0
-              ? 0
-              : (currentPage - 1) * PAGE_SIZE + 1}
-            {" - "}
-            {Math.min(currentPage * PAGE_SIZE, pageInfo.total)}
-            {" of "}
-            {pageInfo.total}
+        )}
+
+        {!loadingPage &&
+          days.map((day) => (
+            <section key={day.date}>
+              <header className="flex items-baseline justify-between gap-4 border-b bg-muted/40 px-5 py-2.5">
+                <h3 className="text-xs font-medium">{dayHeading(day.date)}</h3>
+                <span className="flex items-center gap-3 text-xs tabular-nums text-muted-foreground">
+                  {day.received > 0 && <span className="text-positive">+{formatMoney(day.received)}</span>}
+                  {day.spent > 0 && <span>−{formatMoney(day.spent)}</span>}
+                </span>
+              </header>
+
+              <ul>
+                {day.entries.map((transaction) => {
+                  const category = categoryById.get(transaction.categoryId)
+                  const isIncome = category?.type === 'Income'
+                  return (
+                    <li className="border-b last:border-0" key={transaction.id}>
+                      <button
+                        aria-label={`Edit ${transaction.description}`}
+                        className="group flex w-full items-center gap-4 px-5 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none"
+                        onClick={() => setEditing(transaction)}
+                        type="button"
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium">{transaction.description}</span>
+                          <span className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+                            <span aria-hidden className="size-1.5 shrink-0 rounded-full" style={{ background: category?.color }} />
+                            {category?.name ?? 'Uncategorised'}
+                            <span aria-hidden>·</span>
+                            {transaction.paymentMode}
+                            {transaction.notes && (
+                              <>
+                                <span aria-hidden>·</span>
+                                <span className="truncate">{transaction.notes}</span>
+                              </>
+                            )}
+                          </span>
+                        </span>
+
+                        <span className={cn('shrink-0 text-sm font-medium tabular-nums', isIncome && 'text-positive')}>
+                          {isIncome ? '+' : ''}
+                          {formatMoney(transaction.amount)}
+                        </span>
+
+                        <Pencil
+                          aria-hidden
+                          className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 max-md:opacity-40"
+                        />
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          ))}
+      </Card>
+
+      {pageInfo.total > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs tabular-nums text-muted-foreground">
+            Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, pageInfo.total)} of {pageInfo.total}
           </p>
-
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((p) => p - 1)}
-            >
-              Previous
-            </Button>
-
-            <span className="text-sm">
-              Page {currentPage} of {totalPages}
-            </span>
-
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage((p) => p + 1)}
-            >
-              Next
-            </Button>
+            <Button disabled={currentPage === 1} onClick={() => setCurrentPage((page) => page - 1)} size="sm" variant="outline">Previous</Button>
+            <span className="px-1 text-xs tabular-nums text-muted-foreground">Page {currentPage} of {totalPages}</span>
+            <Button disabled={currentPage === totalPages} onClick={() => setCurrentPage((page) => page + 1)} size="sm" variant="outline">Next</Button>
           </div>
         </div>
-      </CardContent></Card>
+      )}
+
+      <EditEntryDialog
+        categoryById={categoryById}
+        onDelete={onDelete}
+        onOpenChange={(open) => !open && setEditing(null)}
+        onSave={onUpsert}
+        settings={settings}
+        transaction={editing}
+      />
     </div>
   )
 }
 
-function Field({ children, htmlFor, label }: { children: ReactNode; htmlFor?: string; label: string }) {
-  return <div className="grid gap-1.5"><Label htmlFor={htmlFor}>{label}</Label>{children}</div>
+function EditEntryDialog({
+  categoryById,
+  onDelete,
+  onOpenChange,
+  onSave,
+  settings,
+  transaction,
+}: {
+  categoryById: Map<string, Category>
+  onDelete: (id: string) => void
+  onOpenChange: (open: boolean) => void
+  onSave: (transaction: Transaction) => void
+  settings: SettingsState
+  transaction: Transaction | null
+}) {
+  const [draft, setDraft] = useState<Transaction | null>(transaction)
+
+  useEffect(() => setDraft(transaction), [transaction])
+
+  if (!draft) return <Dialog open={false} onOpenChange={onOpenChange}><DialogContent /></Dialog>
+
+  const isIncome = categoryById.get(draft.categoryId)?.type === 'Income'
+  const spendingCategories = settings.categories.filter((category) => category.type !== 'Income')
+
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    if (!draft) return
+    if (!draft.description.trim() || draft.amount <= 0) {
+      toast.error('Check the entry', { description: 'A description and an amount greater than zero are required.' })
+      return
+    }
+    onSave(draft)
+    toast.success('Entry updated')
+    onOpenChange(false)
+  }
+
+  return (
+    <Dialog open={Boolean(transaction)} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit entry</DialogTitle>
+          <DialogDescription>Changes save to your ledger immediately.</DialogDescription>
+        </DialogHeader>
+        <form className="grid gap-4" onSubmit={submit}>
+          <div className="grid gap-2">
+            <Label htmlFor="edit-amount">Amount</Label>
+            <div className="relative">
+              <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground">₹</span>
+              <Input
+                className="pl-7 tabular-nums"
+                id="edit-amount"
+                min="0"
+                onChange={(event) => setDraft({ ...draft, amount: Number(event.target.value) })}
+                step="0.01"
+                type="number"
+                value={draft.amount}
+              />
+            </div>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="edit-description">Description</Label>
+            <Input id="edit-description" onChange={(event) => setDraft({ ...draft, description: event.target.value })} value={draft.description} />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="edit-date">Date</Label>
+            <Input id="edit-date" onChange={(event) => setDraft({ ...draft, date: event.target.value })} type="date" value={draft.date} />
+          </div>
+          {!isIncome && (
+            <>
+              <div className="grid gap-2">
+                <Label>Category</Label>
+                <Select value={draft.categoryId} onValueChange={(value) => setDraft({ ...draft, categoryId: value })}>
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {spendingCategories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        <span className="flex items-center gap-2">
+                          <span className="size-2 shrink-0 rounded-full" style={{ background: category.color }} />
+                          {category.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>Payment mode</Label>
+                <Select value={draft.paymentMode} onValueChange={(value) => setDraft({ ...draft, paymentMode: value })}>
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {settings.paymentModes.map((mode) => (
+                      <SelectItem key={mode} value={mode}>{mode}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
+          <div className="grid gap-2">
+            <Label htmlFor="edit-notes">Notes</Label>
+            <Input id="edit-notes" onChange={(event) => setDraft({ ...draft, notes: event.target.value })} placeholder="Optional" value={draft.notes} />
+          </div>
+          <div className="mt-1 flex items-center gap-2">
+            <ConfirmDialog
+              destructive
+              title="Delete this transaction?"
+              description={`${draft.description} (${formatMoney(draft.amount)}) will be permanently removed.`}
+              confirmLabel="Delete transaction"
+              onConfirm={() => {
+                onDelete(draft.id)
+                onOpenChange(false)
+              }}
+              trigger={
+                <Button className="text-muted-foreground hover:text-destructive" size="icon" title="Delete entry" type="button" variant="ghost">
+                  <Trash2 />
+                </Button>
+              }
+            />
+            <Button className="ml-auto" onClick={() => onOpenChange(false)} type="button" variant="ghost">Cancel</Button>
+            <Button type="submit">Save changes</Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
 }

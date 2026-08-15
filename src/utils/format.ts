@@ -9,13 +9,18 @@ export function formatMoney(value: number) {
 }
 
 export function compactMoney(value: number) {
-  if (value >= 100000) return `Rs ${(value / 100000).toFixed(1)}L`
-  if (value >= 1000) return `Rs ${(value / 1000).toFixed(0)}k`
-  return `Rs ${value}`
+  if (value >= 100000) return `₹${(value / 100000).toFixed(1)}L`
+  if (value >= 1000) return `₹${(value / 1000).toFixed(0)}k`
+  return `₹${value}`
 }
 
 export function formatDate(value: string) {
   return format(parseISO(value), 'dd MMM yyyy')
+}
+
+/** "12 Aug" — the short form used inside dense lists where the year is implied. */
+export function formatDayMonth(value: string) {
+  return format(parseISO(value), 'dd MMM')
 }
 
 export function escapeCsv(value: string) {
