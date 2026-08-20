@@ -1,21 +1,20 @@
 'use client'
 
-import { BookOpen, Download, KeyRound, LogOut, Moon, RotateCcw, Settings, Smartphone, Upload, UserRound } from 'lucide-react'
+import { BookOpen, Download, KeyRound, LogOut, RotateCcw, Settings, Smartphone, Upload, UserRound } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
-import { ThemeToggle } from '../components/theme/ThemeToggle'
-import { Button } from '../components/ui/Button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card'
-import { ConfirmDialog } from '../components/ui/ConfirmDialog'
-import { Input } from '../components/ui/Input'
+import { Button } from '../components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { ConfirmDialog } from '../components/ui/confirm-dialog'
+import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
-import { Switch } from '../components/ui/Switch'
+import { Switch } from '../components/ui/switch'
 import type { SettingsState, User } from '../types'
 import { buildSalaryPlans } from '../utils/models'
 import { Guide } from './Guide'
 import { Setup } from './Setup'
 
-type ProfileSection = 'account' | 'setup' | 'preferences' | 'guide' | 'backup' | 'appearance'
+type ProfileSection = 'account' | 'setup' | 'preferences' | 'guide' | 'backup'
 
 const sections = [
   { id: 'account', label: 'Account', icon: UserRound },
@@ -23,7 +22,6 @@ const sections = [
   { id: 'preferences', label: 'Preferences', icon: Smartphone },
   { id: 'guide', label: 'Guide', icon: BookOpen },
   { id: 'backup', label: 'Backup & reset', icon: Download },
-  { id: 'appearance', label: 'Appearance', icon: Moon },
 ] as const
 
 export function Profile({
@@ -108,16 +106,16 @@ export function Profile({
 
   return (
     <div className="grid gap-5">
-      <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Profile sections">
+      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1" aria-label="Profile sections">
         {sections.map(({ id, label, icon: Icon }) => (
-          <Button className="shrink-0" key={id} variant={section === id ? 'default' : 'outline'} type="button" onClick={() => setSection(id)}>
+          <Button className="shrink-0" key={id} variant={section === id ? 'default' : 'ghost'} type="button" onClick={() => setSection(id)}>
             <Icon size={16} /> {label}
           </Button>
         ))}
       </div>
 
-      {section === 'account' && <div className="grid gap-4 xl:grid-cols-2">
-        <Card><CardHeader><CardTitle>Personal information</CardTitle><CardDescription>Update how your profile appears in Track Your Money.</CardDescription></CardHeader><CardContent>
+      {section === 'account' && <div className="grid items-start gap-4 xl:grid-cols-2">
+        <Card><CardHeader><CardTitle>Personal information</CardTitle><CardDescription>Update how your profile appears across Ledgr.</CardDescription></CardHeader><CardContent>
           <form className="grid gap-5" onSubmit={saveAccount}>
             <div className="grid gap-1.5"><Label htmlFor="profile-name">Name</Label><Input id="profile-name" minLength={2} maxLength={60} value={name} onChange={(event) => setName(event.target.value)} required /></div>
             <div className="grid gap-1.5"><Label htmlFor="profile-email">Email</Label><Input id="profile-email" value={user.email} disabled /><p className="text-xs text-muted-foreground">Your email is used to sign in and cannot be changed here.</p></div>
@@ -141,10 +139,10 @@ export function Profile({
       {section === 'preferences' && <Card className="max-w-2xl">
         <CardHeader>
           <CardTitle>Quick actions</CardTitle>
-          <CardDescription>Choose how you want to move around Track Your Money.</CardDescription>
+          <CardDescription>Choose how you want to move around Ledgr.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-start justify-between gap-4 rounded-lg border bg-muted/40 p-4">
+          <div className="flex items-start justify-between gap-4 rounded-lg bg-muted/60 p-4">
             <div className="min-w-0">
               <Label htmlFor="shake-to-open-ledger">Shake to open Ledger</Label>
               <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
@@ -162,7 +160,7 @@ export function Profile({
             It may not work on laptops, desktop computers, or browsers that do not provide device-motion access.
           </p>
 
-          <div className="mt-4 flex items-start justify-between gap-4 rounded-lg border bg-muted/40 p-4">
+          <div className="mt-4 flex items-start justify-between gap-4 rounded-lg bg-muted/60 p-4">
             <div className="min-w-0">
               <Label htmlFor="rollover-enabled">Carry over unused budget</Label>
               <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
@@ -178,17 +176,16 @@ export function Profile({
         </CardContent>
       </Card>}
       {section === 'guide' && <Guide />}
-      {section === 'backup' && <div className="grid gap-4 lg:grid-cols-2">
+      {section === 'backup' && <div className="grid items-start gap-4 lg:grid-cols-2">
         <Card><CardHeader><CardTitle>Backup your data</CardTitle><CardDescription>Export all settings and transactions, or restore them from a JSON backup.</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-3">
           <Button type="button" onClick={onExportJson}><Download size={16} /> Export backup</Button>
           <Button variant="outline" type="button" onClick={() => backupInput.current?.click()}><Upload size={16} /> Import backup</Button>
           <Input className="hidden" ref={backupInput} type="file" accept="application/json,.json" onChange={(event) => { const file = event.target.files?.[0]; if (file) onImportJson(file); event.target.value = '' }} />
         </CardContent></Card>
-        <Card className="border-destructive/30"><CardHeader><CardTitle>Reset workspace</CardTitle><CardDescription>Permanently replace your settings and transactions with a clean workspace.</CardDescription></CardHeader><CardContent>
+        <Card><CardHeader><CardTitle>Reset workspace</CardTitle><CardDescription>Permanently replace your settings and transactions with a clean workspace.</CardDescription></CardHeader><CardContent>
           <ConfirmDialog destructive title="Reset your workspace?" description="This permanently replaces your settings and transactions with the default data. Export a backup first if you may need them later." confirmLabel="Reset workspace" onConfirm={onReset} trigger={<Button variant="destructive" type="button"><RotateCcw size={16} /> Reset workspace</Button>} />
         </CardContent></Card>
       </div>}
-      {section === 'appearance' && <Card className="max-w-2xl"><CardHeader><CardTitle>Appearance</CardTitle><CardDescription>Choose the color mode that is most comfortable for you.</CardDescription></CardHeader><CardContent className="flex items-center justify-between gap-4 rounded-lg border bg-muted/40 p-4"><div><strong className="text-sm">Light or dark mode</strong><p className="mt-1 text-xs text-muted-foreground">Your preference is saved on this device.</p></div><ThemeToggle /></CardContent></Card>}
     </div>
   )
 }

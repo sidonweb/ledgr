@@ -26,6 +26,8 @@ const withPWA = withPWAInit({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // the floating dev badge sits on top of the mobile navigation bar
+  devIndicators: false,
   async headers() {
     return [
       {

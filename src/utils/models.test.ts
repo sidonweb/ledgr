@@ -177,9 +177,13 @@ describe('buildPaymentRows', () => {
 })
 
 describe('typeColor', () => {
-  it('returns a distinct color per budget type', () => {
-    expect(typeColor('Need')).toBe('#2B5D8A')
-    expect(typeColor('Want')).toBe('#7FD3FF')
-    expect(typeColor('Saving')).toBe('#374151')
+  it('returns a distinct themed color per budget type', () => {
+    expect(typeColor('Need')).toBe('var(--chart-2)')
+    expect(typeColor('Want')).toBe('var(--chart-3)')
+    expect(typeColor('Saving')).toBe('var(--chart-1)')
+  })
+
+  it('falls back to the needs colour for income', () => {
+    expect(typeColor('Income')).toBe('var(--chart-2)')
   })
 })

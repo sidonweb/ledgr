@@ -1,7 +1,9 @@
 import { format } from 'date-fns'
-import type { AppState, BudgetType, Category, SpendingBudgetType, Transaction } from '../types'
+import type { AppState, BudgetType, SpendingBudgetType, Transaction } from '../types'
 import { createId } from '../utils/id'
-import { defaultIncomeCategory } from '../utils/settings'
+import { defaultCategories, defaultPaymentModes } from '../utils/settings'
+
+export { defaultCategories }
 
 export const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 export const spendingBudgetTypes: SpendingBudgetType[] = ['Need', 'Want', 'Saving']
@@ -10,15 +12,6 @@ export const appName = 'Ledgr.'
 export const authTokenKey = 'ledgr-auth-token'
 export const legacyAuthTokenKey = 'where-did-my-money-go-auth-token'
 export const today = new Date()
-
-export const defaultCategories: Category[] = [
-  { id: 'life-infra', name: 'Life Infrastructure', type: 'Need', color: '#2B5D8A' },
-  { id: 'future-me', name: 'Future Me', type: 'Saving', color: '#A3A3A3' },
-  { id: 'performance-growth', name: 'Performance & Growth', type: 'Need', color: '#374151' },
-  { id: 'relationships', name: 'Relationships & Generosity', type: 'Want', color: '#111827' },
-  { id: 'lifestyle', name: 'Lifestyle Enjoyment', type: 'Want', color: '#7FD3FF' },
-  defaultIncomeCategory,
-]
 
 export const emptyDraft = {
   date: format(new Date(), 'yyyy-MM-dd'),
@@ -39,7 +32,7 @@ export const initialState: AppState = {
     shakeToOpenLedger: true,
     rolloverEnabled: false,
     categories: defaultCategories,
-    paymentModes: ['Credit Card', 'Debit Card', 'UPI', 'Cash', 'Bank Transfer'],
+    paymentModes: defaultPaymentModes,
   },
   transactions: [
     tx('2026-01-01', 'Uber late night - NYE', 'life-infra', 450, 'UPI', 'NYE cab home'),

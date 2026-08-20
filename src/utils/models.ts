@@ -137,8 +137,11 @@ export function buildYearDailyTotals(year: number, transactions: Transaction[], 
   return map
 }
 
+/** Needs, wants and savings each keep one hue, so the split reads the same everywhere. */
 export function typeColor(type: BudgetType) {
-  return type === 'Need' ? '#2B5D8A' : type === 'Want' ? '#7FD3FF' : type === 'Saving' ? '#374151' : '#2B5D8A'
+  if (type === 'Want') return 'var(--chart-3)'
+  if (type === 'Saving') return 'var(--chart-1)'
+  return 'var(--chart-2)'
 }
 
 export function buildBudgetCycles(transactions: Transaction[], categoryById: Map<string, Category>): BudgetCycle[] {

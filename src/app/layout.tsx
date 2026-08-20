@@ -1,20 +1,18 @@
 import type { Metadata, Viewport } from 'next'
-import { Space_Grotesk, Space_Mono } from 'next/font/google'
-import Script from 'next/script'
+import { Geist, Geist_Mono } from 'next/font/google'
 import type { ReactNode } from 'react'
 import { Providers } from './providers'
 import './globals.css'
 
-const spaceGrotesk = Space_Grotesk({
+const geistSans = Geist({
   subsets: ['latin'],
-  variable: '--font-space-grotesk',
+  variable: '--font-geist-sans',
   display: 'swap',
 })
 
-const spaceMono = Space_Mono({
+const geistMono = Geist_Mono({
   subsets: ['latin'],
-  weight: ['400', '700'],
-  variable: '--font-space-mono',
+  variable: '--font-geist-mono',
   display: 'swap',
 })
 
@@ -35,21 +33,15 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#FFFFFF' },
-    { media: '(prefers-color-scheme: dark)', color: '#111111' },
-  ],
+  themeColor: '#FAFAFA',
   width: 'device-width',
   initialScale: 1,
 }
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${spaceGrotesk.variable} ${spaceMono.variable}`}>
-        <Script id="theme-init" strategy="beforeInteractive">
-          {`try{const signedIn=Boolean(localStorage.getItem('ledgr-auth-token')||localStorage.getItem('where-did-my-money-go-auth-token'));const d=signedIn&&localStorage.getItem('app-theme')==='dark';document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light'}catch{}`}
-        </Script>
+    <html lang="en">
+      <body className={`${geistSans.variable} ${geistMono.variable}`}>
         <Providers>{children}</Providers>
       </body>
     </html>
